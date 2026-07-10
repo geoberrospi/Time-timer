@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Time Timer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #060606;
+    --panel: #121212;
+    --panel-border: #241111;
+    --red: #ff2a2a;
+    --red-glow: rgba(255,42,42,0.55);
+    --red-dim: #3a1010;
+    --orange: #ff8a00;
+    --orange-glow: rgba(255,138,0,0.6);
+    --orange-dim: #3a2400;
+    --text: #e9e9e9;
+    --text-muted: #8a8a8a;
+    --hair: #2a1414;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  .app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---------- Task bar ---------- */
+  .taskbar{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:14px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--hair);
+  }
+  .taskbar .label{
+    font-size:11px;
+    letter-spacing:.14em;
+    color: var(--text-muted);
+    font-weight:600;
+    white-space:nowrap;
+  }
+  .taskbar input[type="text"]{
+    flex:1;
+    background:transparent;
+    border:none;
+    outline:none;
+    color: var(--text);
+    font-size:16px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+    border-bottom: 1px solid transparent;
+    padding:4px 2px;
+  }
+  .taskbar input[type="text"]:focus{
+    border-bottom: 1px solid var(--orange);
+  }
+  .taskbar input[type="text"]::placeholder{ color:#555; font-weight:400; }
+
+  /* ---------- Layout ---------- */
+  .main{
+    flex:1;
+    display:grid;
+    grid-template-columns: 1fr 300px;
+    gap:1px;
+    background: var(--hair);
+  }
+  @media (max-width: 760px){
+    .main{ grid-template-columns: 1fr; }
+  }
+
+  .timer-panel{
+    background: var(--bg);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:40px 24px;
+    gap:34px;
+  }
+
+  /* ---------- Circular ring + digit display ---------- */
+  .ring-wrap{
+    position:relative;
+    width:340px;
+    height:340px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  @media (max-width: 500px){
+    .ring-wrap{ width:250px; height:250px; }
+  }
+
+  .ring{
+    position:absolute;
+    inset:0;
+    --radius: 152px;
+  }
+  @media (max-width: 500px){
+    .ring{ --radius: 108px; }
+  }
+
+  .tick-wrap{
+    position:absolute;
+    top:50%;
+    left:50%;
+    width:0;
+    height:0;
+  }
+  .tick{
+    position:absolute;
+    left:-3px;
+    top: calc(-1 * var(--radius) - 10px);
+    width:6px;
+    height:20px;
+    border-radius:3px;
+    background: var(--orange-dim);
+    transition: background 0.15s linear, box-shadow 0.15s linear;
+  }
+  .tick.lit{
+    background: var(--orange);
+    box-shadow: 0 0 8px var(--orange-glow), 0 0 2px var(--orange-glow);
+  }
+  .tick.lit.critical{
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red-glow);
+  }
+
+  .display-core{
+    position:relative;
+    z-index:2;
+    line-height:1;
+    text-align:center;
+  }
+  .digits{
+    font-family:'JetBrains Mono', monospace;
+    font-size:clamp(38px, 8vw, 64px);
+    font-weight:700;
+    letter-spacing:0.03em;
+    position:relative;
+    z-index:2;
+    color: var(--red);
+    text-shadow: 0 0 10px var(--red-glow), 0 0 28px var(--red-glow);
+  }
+  .digits.flash{
+    animation: flash 0.6s steps(1) infinite;
+  }
+  .ghost{
+    font-family:'JetBrains Mono', monospace;
+    font-size:clamp(38px, 8vw, 64px);
+    font-weight:700;
+    letter-spacing:0.03em;
+    color: var(--red-dim);
+    position:absolute;
+    top:0; left:0; right:0;
+    z-index:1;
+    user-select:none;
+  }
+  @keyframes flash{
+    0%,49%{ opacity:1; }
+    50%,100%{ opacity:0.25; }
+  }
+  .status-line{
+    margin-top:8px;
+    font-size:12px;
+    letter-spacing:.12em;
+    color: var(--text-muted);
+    font-weight:600;
+    z-index:2;
+    position:relative;
+  }
+
+  /* ---------- Presets & controls ---------- */
+  .presets{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .chip{
+    background: var(--panel);
+    border:1px solid var(--panel-border);
+    color: var(--text-muted);
+    padding:8px 16px;
+    border-radius:20px;
+    font-size:13px;
+    font-weight:600;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .chip:hover{ color: var(--text); border-color: var(--orange); }
+  .chip.active{
+    color: var(--bg);
+    background: var(--orange);
+    border-color: var(--orange);
+  }
+  .custom-time{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .custom-time input{
+    width:52px;
+    background: var(--panel);
+    border:1px solid var(--panel-border);
+    color: var(--text);
+    font-family:'JetBrains Mono', monospace;
+    font-size:14px;
+    text-align:center;
+    padding:7px 4px;
+    border-radius:6px;
+  }
+  .custom-time span{ color:var(--text-muted); font-size:13px; }
+
+  .controls{
+    display:flex;
+    gap:12px;
+  }
+  .btn{
+    padding:12px 28px;
+    border-radius:8px;
+    border:1px solid var(--panel-border);
+    background: var(--panel);
+    color: var(--text);
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:.04em;
+    cursor:pointer;
+    font-family:'Inter',sans-serif;
+  }
+  .btn.primary{
+    background: var(--orange);
+    color: #1a0d00;
+    border-color: var(--orange);
+  }
+  .btn:hover{ filter:brightness(1.12); }
+  .btn:active{ filter:brightness(0.92); }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background: var(--bg);
+    padding:22px 18px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  .sidebar h2{
+    font-size:12px;
+    letter-spacing:.16em;
+    color: var(--text-muted);
+    margin:0;
+    font-weight:700;
+  }
+  .add-row{
+    display:flex;
+    gap:8px;
+  }
+  .add-row input{
+    flex:1;
+    background: var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:6px;
+    color: var(--text);
+    padding:9px 10px;
+    font-size:13px;
+    font-family:'Inter',sans-serif;
+    outline:none;
+  }
+  .add-row input:focus{ border-color: var(--orange); }
+  .add-row button{
+    background: var(--orange);
+    color:#1a0d00;
+    border:none;
+    border-radius:6px;
+    width:36px;
+    font-size:18px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .todo-list{
+    list-style:none;
+    margin:0; padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    overflow-y:auto;
+  }
+  .todo-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background: var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:6px;
+    padding:9px 10px;
+  }
+  .todo-item .check{
+    width:16px; height:16px;
+    border-radius:4px;
+    border:1.5px solid var(--orange);
+    flex:none;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .todo-item.done .check{ background:var(--orange); }
+  .todo-item .txt{
+    flex:1;
+    font-size:13px;
+    color: var(--text);
+    word-break:break-word;
+    cursor:pointer;
+  }
+  .todo-item.done .txt{
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+  .todo-item .del{
+    background:none;
+    border:none;
+    color:#555;
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+    flex:none;
+  }
+  .todo-item .del:hover{ color: var(--red); }
+  .empty-note{
+    color:#555;
+    font-size:12px;
+    text-align:center;
+    padding:14px 0;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="taskbar">
+    <span class="label">CURRENT TASK</span>
+    <input type="text" id="taskInput" placeholder="What are you working on?">
+  </div>
+
+  <div class="main">
+    <div class="timer-panel">
+
+      <div class="ring-wrap">
+        <div class="ring" id="ring"></div>
+        <div class="display-core">
+          <div class="ghost">88:88</div>
+          <div class="digits" id="digits">10:00</div>
+          <div class="status-line" id="statusLine">READY</div>
+        </div>
+      </div>
+
+      <div class="presets" id="presets">
+        <div class="chip" data-secs="300">5 MIN</div>
+        <div class="chip active" data-secs="600">10 MIN</div>
+        <div class="chip" data-secs="900">15 MIN</div>
+        <div class="chip" data-secs="1500">25 MIN</div>
+        <div class="custom-time">
+          <input type="number" id="customMin" min="0" max="180" value="10">
+          <span>MIN</span>
+          <input type="number" id="customSec" min="0" max="59" value="0">
+          <span>SEC</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn primary" id="startBtn">START</button>
+        <button class="btn" id="pauseBtn">PAUSE</button>
+        <button class="btn" id="resetBtn">RESET</button>
+      </div>
+
+    </div>
+
+    <div class="sidebar">
+      <h2>TO-DO</h2>
+      <div class="add-row">
+        <input type="text" id="todoInput" placeholder="Add a task...">
+        <button id="todoAddBtn">+</button>
+      </div>
+      <ul class="todo-list" id="todoList"></ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ---------- Persistence ----------
+  const STORAGE_KEY = 'timeTimerData';
+
+  function loadState(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch(e){
+      console.warn('Could not read saved timer data:', e);
+      return null;
+    }
+  }
+
+  function saveState(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        task: taskInput.value,
+        todos: todos,
+        todoIdSeq: todoIdSeq,
+        totalSeconds: totalSeconds
+      }));
+    } catch(e){
+      console.warn('Could not save timer data:', e);
+    }
+  }
+
+  // ---------- Timer state ----------
+  let totalSeconds = 600;
+  let remaining = 600;
+  let intervalId = null;
+  let running = false;
+
+  const taskInput = document.getElementById('taskInput');
+  const digitsEl = document.getElementById('digits');
+  const statusLine = document.getElementById('statusLine');
+  const ringEl = document.getElementById('ring'); // Fixed to match the HTML ID 'ring'
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const presetsEl = document.getElementById('presets');
+  const customMin = document.getElementById('customMin');
+  const customSec = document.getElementById('customSec');
+
+  const SEG_COUNT = 40;
+  for (let i = 0; i < SEG_COUNT; i++) {
+    // Creating wrapper wrappers for the ticks to handle circular distribution
+    const wrap = document.createElement('div');
+    wrap.className = 'tick-wrap';
+    wrap.style.transform = `rotate(${(i * 360) / SEG_COUNT}deg)`;
+    
+    const s = document.createElement('div');
+    s.className = 'tick';
+    
+    wrap.appendChild(s);
+    ringEl.appendChild(wrap);
+  }
+  const segs = Array.from(ringEl.querySelectorAll('.tick'));
+
+  function formatTime(s){
+    const m = Math.floor(s / 60).toString().padStart(2,'0');
+    const sec = Math.floor(s % 60).toString().padStart(2,'0');
+    return m + ':' + sec;
+  }
+
+  function renderDisplay(){
+    digitsEl.textContent = formatTime(remaining);
+    const pct = remaining / totalSeconds;
+    const litCount = Math.round(pct * SEG_COUNT);
+    const critical = pct <= 0.15;
+    segs.forEach((seg, i) => {
+      const isLit = i < litCount;
+      seg.classList.toggle('lit', isLit);
+      seg.classList.toggle('critical', isLit && critical);
+    });
+    if (remaining <= 0){
+      statusLine.textContent = "TIME'S UP";
+      digitsEl.classList.add('flash');
+    } else if (running){
+      statusLine.textContent = 'RUNNING';
+      digitsEl.classList.remove('flash');
+    } else if (remaining < totalSeconds){
+      statusLine.textContent = 'PAUSED';
+      digitsEl.classList.remove('flash');
+    } else {
+      statusLine.textContent = 'READY';
+      digitsEl.classList.remove('flash');
+    }
+  }
+
+  function tick(){
+    if (remaining > 0){
+      remaining -= 1;
+      renderDisplay();
+    }
+    if (remaining <= 0){
+      clearInterval(intervalId);
+      intervalId = null;
+      running = false;
+    }
+  }
+
+  function startTimer(){
+    if (running) return;
+    if (remaining <= 0) return;
+    running = true;
+    intervalId = setInterval(tick, 1000);
+    renderDisplay();
+  }
+
+  function pauseTimer(){
+    running = false;
+    if (intervalId) clearInterval(intervalId);
+    intervalId = null;
+    renderDisplay();
+  }
+
+  function resetTimer(){
+    pauseTimer();
+    remaining = totalSeconds;
+    renderDisplay();
+  }
+
+  function setDuration(secs){
+    totalSeconds = secs;
+    remaining = secs;
+    pauseTimer();
+    renderDisplay();
+    saveState();
+  }
+
+  startBtn.addEventListener('click', startTimer);
+  pauseBtn.addEventListener('click', pauseTimer);
+  resetBtn.addEventListener('click', resetTimer);
+
+  presetsEl.querySelectorAll('.chip[data-secs]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      presetsEl.querySelectorAll('.chip[data-secs]').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      setDuration(parseInt(chip.dataset.secs, 10));
+      customMin.value = Math.floor(parseInt(chip.dataset.secs,10)/60);
+      customSec.value = parseInt(chip.dataset.secs,10) % 60;
+    });
+  });
+
+  function applyCustom(){
+    presetsEl.querySelectorAll('.chip[data-secs]').forEach(c => c.classList.remove('active'));
+    const m = Math.max(0, parseInt(customMin.value || '0', 10));
+    const s = Math.max(0, Math.min(59, parseInt(customSec.value || '0', 10)));
+    setDuration(m * 60 + s);
+  }
+  customMin.addEventListener('change', applyCustom);
+  customSec.addEventListener('change', applyCustom);
+
+  taskInput.addEventListener('input', saveState);
+
+  // ---------- To-do list ----------
+  let todos = [];
+  let todoIdSeq = 1;
+  const todoInput = document.getElementById('todoInput');
+  const todoAddBtn = document.getElementById('todoAddBtn');
+  const todoList = document.getElementById('todoList');
+
+  function renderTodos(){
+    todoList.innerHTML = '';
+    if (todos.length === 0){
+      const li = document.createElement('li');
+      li.className = 'empty-note';
+      li.textContent = 'No tasks yet';
+      todoList.appendChild(li);
+      return;
+    }
+    todos.forEach(t => {
+      const li = document.createElement('li');
+      li.className = 'todo-item' + (t.done ? ' done' : '');
+
+      const check = document.createElement('div');
+      check.className = 'check';
+      check.addEventListener('click', () => {
+        t.done = !t.done;
+        renderTodos();
+        saveState();
+      });
+
+      const txt = document.createElement('div');
+      txt.className = 'txt';
+      txt.textContent = t.text;
+      txt.addEventListener('click', () => {
+        t.done = !t.done;
+        renderTodos();
+        saveState();
+      });
+
+      const del = document.createElement('button');
+      del.className = 'del';
+      del.textContent = '\u00d7';
+      del.addEventListener('click', () => {
+        todos = todos.filter(x => x.id !== t.id);
+        renderTodos();
+        saveState();
+      });
+
+      li.appendChild(check);
+      li.appendChild(txt);
+      li.appendChild(del);
+      todoList.appendChild(li);
+    });
+  }
+
+  function addTodo(){
+    const val = todoInput.value.trim();
+    if (!val) return;
+    todos.push({ id: todoIdSeq++, text: val, done: false });
+    todoInput.value = '';
+    renderTodos();
+    saveState();
+  }
+
+  todoAddBtn.addEventListener('click', addTodo);
+  todoInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTodo();
+  });
+
+  // ---------- Init: restore saved state, then render everything ----------
+  (function init(){
+    const saved = loadState();
+    if (saved){
+      if (typeof saved.task === 'string') taskInput.value = saved.task;
+      if (Array.isArray(saved.todos)) todos = saved.todos;
+      if (typeof saved.todoIdSeq === 'number') todoIdSeq = saved.todoIdSeq;
+      if (typeof saved.totalSeconds === 'number' && saved.totalSeconds > 0){
+        totalSeconds = saved.totalSeconds;
+        remaining = saved.totalSeconds;
+        customMin.value = Math.floor(totalSeconds / 60);
+        customSec.value = totalSeconds % 60;
+        presetsEl.querySelectorAll('.chip[data-secs]').forEach(c => {
+          c.classList.toggle('active', parseInt(c.dataset.secs, 10) === totalSeconds);
+        });
+      }
+    }
+    renderDisplay();
+    renderTodos();
+  })();
+</script>
+</body>
+</html>
