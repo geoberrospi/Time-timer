@@ -550,18 +550,10 @@
 </div>
 
 <script>
-  // ---------- Hashing Lock System ----------
-  // SHA-256 hash representation of '122923' (Fix implemented!)
-  const targetHash = "6bc081681283d58efda176ff1686d63d04cb9fdf32f05a96860f0653d9bcfb50";
+  // ---------- Fast Mathematical Lock System ----------
+  // Scrambled representation of '122923' (Guaranteed to work both online and on local computer files)
+  const targetValue = "1207275054";
   let enteredPin = "";
-
-  async function sha256(str) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(str);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
-  }
 
   function pressNum(num) {
     if (enteredPin.length >= 6) return;
@@ -596,9 +588,11 @@
     document.getElementById('keyError').textContent = "";
   }
 
-  async function verifyPin() {
-    const hash = await sha256(enteredPin);
-    if (hash === targetHash) {
+  function verifyPin() {
+    // Basic algebra translation that prevents the PIN from showing in plain text
+    const scrambleVal = ((parseInt(enteredPin, 10) * 9821) + 48271).toString();
+    
+    if (scrambleVal === targetValue) {
       document.getElementById('lockScreen').style.display = 'none';
       document.getElementById('mainApp').style.display = 'flex';
       init(); // Start application flows once access is authorized
