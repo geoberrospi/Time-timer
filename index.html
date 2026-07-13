@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Time Timer</title>
+<title>Time Timer (Local Storage & Music)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -27,6 +27,7 @@
     color: var(--text);
     font-family: 'Inter', system-ui, sans-serif;
   }
+  
   .app{
     min-height:100vh;
     display:flex;
@@ -66,7 +67,7 @@
   }
   .taskbar input[type="text"]::placeholder{ color:#555; font-weight:400; }
 
-  /* ---------- Layout ---------- */
+  /* ---------- Main Panels ---------- */
   .main{
     flex:1;
     display:grid;
@@ -121,14 +122,13 @@
     position:absolute;
     left:-5px;
     top: calc(-1 * var(--radius) - 14px);
-    width:10px; /* Thicker segments for a continuous block look */
+    width:10px;
     height:18px;
     border-radius:2px;
-    background: #1a1a1a; /* Dark unlit segments */
+    background: #1a1a1a;
     transition: background 0.15s ease, box-shadow 0.15s ease;
   }
   .tick.lit{
-    /* Dynamic background color injected via JavaScript */
     box-shadow: 0 0 10px var(--dynamic-glow), 0 0 2px var(--dynamic-glow);
   }
   .tick.lit.critical {
@@ -152,7 +152,7 @@
     letter-spacing:0.01em;
     position:relative;
     z-index:2;
-    color: #ffffff; /* Clean white main clock like reference image */
+    color: #ffffff;
     text-shadow: 0 0 15px rgba(255,255,255,0.2);
   }
   .digits.flash{
@@ -296,6 +296,7 @@
     display:flex;
     flex-direction:column;
     gap:8px;
+    max-height: 200px;
     overflow-y:auto;
   }
   .todo-item{
@@ -343,9 +344,17 @@
     text-align:center;
     padding:14px 0;
   }
+
+  /* ---------- Spotify Embed Box ---------- */
+  .spotify-panel {
+    margin-top: 10px;
+    border-top: 1px solid var(--hair);
+    padding-top: 16px;
+  }
 </style>
 </head>
 <body>
+
 <div class="app">
 
   <div class="taskbar">
@@ -393,13 +402,19 @@
         <button id="todoAddBtn">+</button>
       </div>
       <ul class="todo-list" id="todoList"></ul>
+
+      <!-- Spotify Section -->
+      <div class="spotify-panel">
+        <h2>FOCUS MUSIC</h2>
+        <iframe style="border-radius:12px; margin-top:10px;" src="https://open.spotify.com/embed/playlist/37i9dQZF1DWWQRwuiq92zX?utm_source=generator&theme=0" width="100%" height="152" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+      </div>
     </div>
   </div>
 
 </div>
 
 <script>
-  // ---------- Persistence ----------
+  // ---------- Local Storage Persistence ----------
   const STORAGE_KEY = 'timeTimerData';
 
   function loadState(){
@@ -426,12 +441,15 @@
     }
   }
 
-  // ---------- Timer state ----------
+  // ---------- Timer State Variables ----------
   let totalSeconds = 600;
   let remaining = 600;
   let intervalId = null;
   let running = false;
+  let todos = [];
+  let todoIdSeq = 1;
 
+  // ---------- DOM Elements ----------
   const taskInput = document.getElementById('taskInput');
   const digitsEl = document.getElementById('digits');
   const statusLine = document.getElementById('statusLine');
@@ -442,8 +460,11 @@
   const presetsEl = document.getElementById('presets');
   const customMin = document.getElementById('customMin');
   const customSec = document.getElementById('customSec');
+  const todoInput = document.getElementById('todoInput');
+  const todoAddBtn = document.getElementById('todoAddBtn');
+  const todoList = document.getElementById('todoList');
 
-  // Set up 60 segments to capture a dense circle layout matching the image style
+  // ---------- Build Visual Ticks Loop ----------
   const SEG_COUNT = 60;
   for (let i = 0; i < SEG_COUNT; i++) {
     const wrap = document.createElement('div');
@@ -458,6 +479,7 @@
   }
   const segs = Array.from(ringEl.querySelectorAll('.tick'));
 
+  // ---------- Timer Functions ----------
   function formatTime(s){
     const m = Math.floor(s / 60).toString().padStart(2,'0');
     const sec = Math.floor(s % 60).toString().padStart(2,'0');
@@ -476,8 +498,6 @@
       seg.classList.toggle('critical', isLit && critical);
       
       if (isLit) {
-        // Injects a gorgeous continuous HSL color ring mapping out the custom layout from the reference picture
-        // Starts at a red color gradient and loops smoothly through orange, green, teal, and deep blue
         const hue = (i * 360) / SEG_COUNT; 
         seg.style.background = `hsl(${hue}, 90%, 55%)`;
         seg.style.setProperty('--dynamic-glow', `rgba(255, 255, 255, 0.2)`);
@@ -564,16 +584,9 @@
   }
   customMin.addEventListener('change', applyCustom);
   customSec.addEventListener('change', applyCustom);
-
   taskInput.addEventListener('input', saveState);
 
-  // ---------- To-do list ----------
-  let todos = [];
-  let todoIdSeq = 1;
-  const todoInput = document.getElementById('todoInput');
-  const todoAddBtn = document.getElementById('todoAddBtn');
-  const todoList = document.getElementById('todoList');
-
+  // ---------- To-Do Core ----------
   function renderTodos(){
     todoList.innerHTML = '';
     if (todos.length === 0){
@@ -634,7 +647,7 @@
     if (e.key === 'Enter') addTodo();
   });
 
-  // ---------- Init: restore saved state, then render everything ----------
+  // ---------- Initialization Flow ----------
   (function init(){
     const saved = loadState();
     if (saved){
