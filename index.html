@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Time Timer (Local Storage, Music & Calendar)</title>
+<title>Time Timer (Dashboard)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -26,11 +26,100 @@
     background: var(--bg);
     color: var(--text);
     font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ---------- Keypad Lock Overlay ---------- */
+  #lockScreen {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 6, 6, 0.98);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .keypad-container {
+    background: #111;
+    border: 1px solid var(--panel-border);
+    padding: 24px;
+    border-radius: 16px;
+    width: 290px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .keypad-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .pin-display {
+    height: 45px;
+    background: #000;
+    border: 1px solid #222;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .pin-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #333;
+    transition: background 0.1s ease;
+  }
+  .pin-dot.filled {
+    background: var(--orange);
+    box-shadow: 0 0 8px var(--orange-glow);
+  }
+  .keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .key-btn {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 14px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .key-btn:active, .key-btn:hover {
+    background: #2a2a2a;
+    border-color: var(--orange);
+  }
+  .key-btn.action {
+    background: #222;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+  .key-btn.action:hover {
+    color: var(--red);
+  }
+  .key-error {
+    color: var(--red);
+    font-size: 11px;
+    margin-top: 12px;
+    min-height: 14px;
+    font-weight: 600;
   }
   
+  /* ---------- App Layout ---------- */
   .app{
+    display: none; /* Injected by lock verification logic */
     min-height:100vh;
-    display:flex;
     flex-direction:column;
   }
 
@@ -298,7 +387,7 @@
     display:flex;
     flex-direction:column;
     gap:8px;
-    max-height: 150px;
+    max-height: 120px;
     overflow-y:auto;
   }
   .todo-item{
@@ -364,7 +453,37 @@
 </head>
 <body>
 
-<div class="app">
+<!-- Secret Keypad Lockscreen -->
+<div id="lockScreen">
+  <div class="keypad-container">
+    <div class="keypad-title">SECURITY GATE</div>
+    <div class="pin-display" id="pinDisplay">
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+      <div class="pin-dot"></div>
+    </div>
+    <div class="keypad-grid">
+      <button class="key-btn" onclick="pressNum('1')">1</button>
+      <button class="key-btn" onclick="pressNum('2')">2</button>
+      <button class="key-btn" onclick="pressNum('3')">3</button>
+      <button class="key-btn" onclick="pressNum('4')">4</button>
+      <button class="key-btn" onclick="pressNum('5')">5</button>
+      <button class="key-btn" onclick="pressNum('6')">6</button>
+      <button class="key-btn" onclick="pressNum('7')">7</button>
+      <button class="key-btn" onclick="pressNum('8')">8</button>
+      <button class="key-btn" onclick="pressNum('9')">9</button>
+      <button class="key-btn action" onclick="clearPIN()">CLEAR</button>
+      <button class="key-btn" onclick="pressNum('0')">0</button>
+      <button class="key-btn action" onclick="backspacePIN()">⌫</button>
+    </div>
+    <div class="key-error" id="keyError"></div>
+  </div>
+</div>
+
+<div class="app" id="mainApp">
 
   <div class="taskbar">
     <span class="label">CURRENT TASK</span>
@@ -416,6 +535,7 @@
       <div class="calendar-panel">
         <h2>SCHEDULE & EVENTS</h2>
         <div class="calendar-container">
+          <!-- Calendar is custom stylized to force dark mode & hides clutter -->
           <iframe src="https://calendar.google.com/calendar/embed?src=7047a303eca09807ba34ad5e3602974a568b578b659afd44b2b7c6c67c492b79%40group.calendar.google.com&ctz=America%2FLos_Angeles&bgcolor=%23121212&showTitle=0&showNav=1&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0&mode=AGENDA" style="border-width:0" width="100%" height="250" frameborder="0" scrolling="no"></iframe>
         </div>
       </div>
@@ -431,6 +551,67 @@
 </div>
 
 <script>
+  // ---------- Hashing Lock System ----------
+  // SHA-256 hash representation of '122923'
+  const targetHash = "dbba8f070bc0e9988226068305f818b290912cb8494ff6603a1154f9a0d33e59";
+  let enteredPin = "";
+
+  async function sha256(str) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(str);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function pressNum(num) {
+    if (enteredPin.length >= 6) return;
+    enteredPin += num;
+    updatePinDisplay();
+    
+    if (enteredPin.length === 6) {
+      verifyPin();
+    }
+  }
+
+  function updatePinDisplay() {
+    const dots = document.querySelectorAll('.pin-dot');
+    dots.forEach((dot, idx) => {
+      if (idx < enteredPin.length) {
+        dot.classList.add('filled');
+      } else {
+        dot.classList.remove('filled');
+      }
+    });
+  }
+
+  function clearPIN() {
+    enteredPin = "";
+    updatePinDisplay();
+    document.getElementById('keyError').textContent = "";
+  }
+
+  function backspacePIN() {
+    enteredPin = enteredPin.slice(0, -1);
+    updatePinDisplay();
+    document.getElementById('keyError').textContent = "";
+  }
+
+  async function verifyPin() {
+    const hash = await sha256(enteredPin);
+    if (hash === targetHash) {
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('mainApp').style.display = 'flex';
+      init(); // Start application flows once access is authorized
+    } else {
+      document.getElementById('keyError').textContent = "INVALID PASSCODE";
+      // Auto shake or clear code shortly
+      setTimeout(() => {
+        clearPIN();
+      }, 600);
+    }
+  }
+
   // ---------- Local Storage Persistence ----------
   const STORAGE_KEY = 'timeTimerData';
 
@@ -665,7 +846,7 @@
   });
 
   // ---------- Initialization Flow ----------
-  (function init(){
+  function init(){
     const saved = loadState();
     if (saved){
       if (typeof saved.task === 'string') taskInput.value = saved.task;
@@ -683,7 +864,7 @@
     }
     renderDisplay();
     renderTodos();
-  })();
+  }
 </script>
 </body>
 </html>
